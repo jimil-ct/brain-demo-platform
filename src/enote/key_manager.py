@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Iterable
 
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 
 class RotationDecision(str, Enum):
     ACTIVE = "active"
@@ -31,6 +33,12 @@ class KeyMaterial:
         if self.not_after <= now:
             return RotationDecision.ROTATION_DUE
         return RotationDecision.ACTIVE
+
+
+@dataclass(frozen=True)
+class WrappedDataKey:
+    encrypted_data_key: bytes
+    nonce: bytes
 
 
 class KeyRing:
@@ -59,6 +67,23 @@ class KeyRing:
             return self._keys[key_id]
         except KeyError as exc:
             raise KeyError(f"unknown eNote encryption key: {key_id}") from exc
+
+    def wrap_data_key(
+        self, *, key_id: str, data_key: bytes, aad: bytes
+    ) -> WrappedDataKey:
+        if len(data_key) != 32:
+            raise ValueError("envelope data keys must be 256 bits")
+        key = self.get(key_id)
+        nonce = secrets.token_bytes(12)
+        return WrappedDataKey(
+            encrypted_data_key=AESGCM(key.secret).encrypt(nonce, data_key, aad),
+            nonce=nonce,
+        )
+
+    def unwrap_data_key(
+        self, *, key_id: str, encrypted_data_key: bytes, nonce: bytes, aad: bytes
+    ) -> bytes:
+        return AESGCM(self.get(key_id).secret).decrypt(nonce, encrypted_data_key, aad)
 
     def rotation_report(self) -> list[dict[str, str]]:
         return [
