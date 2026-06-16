@@ -3,6 +3,7 @@
 import os
 import logging
 
+import uuid
 import stripe
 
 logger = logging.getLogger(__name__)
@@ -15,12 +16,15 @@ def create_customer(email: str, name: str) -> str:
     return customer.id
 
 
-def create_subscription(customer_id: str, price_id: str) -> dict:
+def create_subscription(customer_id: str, price_id: str, idempotency_key: str = None) -> dict:
+    if idempotency_key is None:
+        idempotency_key = str(uuid.uuid4())
     subscription = stripe.Subscription.create(
         customer=customer_id,
         items=[{"price": price_id}],
         payment_behavior="default_incomplete",
         expand=["latest_invoice.payment_intent"],
+        idempotency_key=idempotency_key,
     )
     return {
         "subscription_id": subscription.id,
