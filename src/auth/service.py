@@ -15,6 +15,7 @@ TOKEN_EXPIRY_HOURS = int(os.environ.get("TOKEN_EXPIRY_HOURS", "24"))
 def create_token(user_id: str, roles: list[str], org_id: int) -> str:
     payload = {
         "sub": user_id,
+        "jti": secrets.token_urlsafe(32),
         "roles": roles,
         "org_id": org_id,
         "iat": datetime.now(timezone.utc),
